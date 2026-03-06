@@ -1,0 +1,86 @@
+# Render Blueprint — Library Management System
+# Docs: https://render.com/docs/blueprint-spec
+#
+# This file defines all three services (PostgreSQL, Django, Next.js).
+# Connect your GitHub repo to Render and it will auto-deploy everything.
+
+services:
+  # ─── Django Backend ─────────────────────────────────────────────
+  - type: web
+    name: library-backend
+    runtime: docker
+    dockerfilePath: ./library_backend/Dockerfile
+    dockerContext: ./library_backend
+    plan: free
+
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true           # Render auto-generates a secure value
+
+      - key: DEBUG
+        value: "False"
+
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com,localhost"
+
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://library-frontend.onrender.com"  # Update after frontend deploys
+
+      - key: DB_NAME
+        fromDatabase:
+          name: library-postgres
+          property: database
+
+      - key: DB_USER
+        fromDatabase:
+          name: library-postgres
+          property: user
+
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: library-postgres
+          property: password
+
+      - key: DB_HOST
+        fromDatabase:
+          name: library-postgres
+          property: host
+
+      - key: DB_PORT
+        fromDatabase:
+          name: library-postgres
+          property: port
+
+      - key: FINE_PER_DAY
+        value: "5"
+
+      - key: LOAN_PERIOD_DAYS
+        value: "14"
+
+    # Run migrations automatically before each deploy
+    startCommand: >
+      sh -c "python manage.py makemigrations users books transactions &&
+             python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn library_backend.wsgi:application --bind 0.0.0.0:$PORT --workers 3"
+
+    healthCheckPath: /api/docs/
+
+  # ─── Next.js Frontend ────────────────────────────────────────────
+  - type: web
+    name: library-frontend
+    runtime: docker
+    dockerfilePath: ./library_frontend/Dockerfile
+    dockerContext: ./library_frontend
+    plan: free
+
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: "https://library-backend.onrender.com/api"  # Update with your backend URL
+
+# ─── PostgreSQL Database ─────────────────────────────────────────
+databases:
+  - name: library-postgres
+    plan: free
+    databaseName: library_db
+    user: library_user

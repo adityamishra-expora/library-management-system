@@ -1,0 +1,142 @@
+name: CI — Build & Test
+
+# Trigger on every push to main/develop and on all pull requests
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # ────────────────────────────────────────────────────────────────
+  # Job 1: Django Backend — lint, migrations check, tests
+  # ────────────────────────────────────────────────────────────────
+  backend:
+    name: Backend (Django)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: library_test_db
+          POSTGRES_USER: library_user
+          POSTGRES_PASSWORD: library_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SECRET_KEY: ci-test-secret-key-not-for-production
+      DEBUG: "True"
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      DB_NAME: library_test_db
+      DB_USER: library_user
+      DB_PASSWORD: library_password
+      DB_HOST: localhost
+      DB_PORT: 5432
+      FINE_PER_DAY: 5
+      LOAN_PERIOD_DAYS: 14
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: library_backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: library_backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create .env file for CI
+        working-directory: library_backend
+        run: |
+          cat > .env << EOF
+          SECRET_KEY=ci-test-secret-key-not-for-production
+          DEBUG=True
+          ALLOWED_HOSTS=localhost,127.0.0.1
+          DB_NAME=library_test_db
+          DB_USER=library_user
+          DB_PASSWORD=library_password
+          DB_HOST=localhost
+          DB_PORT=5432
+          EOF
+
+      - name: Run makemigrations (check for missing migrations)
+        working-directory: library_backend
+        run: python manage.py makemigrations --check --dry-run || python manage.py makemigrations users books transactions
+
+      - name: Run migrations
+        working-directory: library_backend
+        run: python manage.py migrate
+
+      - name: Check Django system (warnings/errors)
+        working-directory: library_backend
+        run: python manage.py check
+
+      - name: Run tests
+        working-directory: library_backend
+        run: python manage.py test --verbosity=2
+
+  # ────────────────────────────────────────────────────────────────
+  # Job 2: Next.js Frontend — type-check and build
+  # ────────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: library_frontend/package.json
+
+      - name: Install dependencies
+        working-directory: library_frontend
+        run: npm install
+
+      - name: Create .env.local for CI build
+        working-directory: library_frontend
+        run: echo "NEXT_PUBLIC_API_URL=http://localhost:8000/api" > .env.local
+
+      - name: TypeScript type-check
+        working-directory: library_frontend
+        run: npx tsc --noEmit
+
+      - name: Build Next.js app
+        working-directory: library_frontend
+        run: npm run build
+
+  # ────────────────────────────────────────────────────────────────
+  # Job 3: Docker — verify both images build successfully
+  # ────────────────────────────────────────────────────────────────
+  docker-build:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]   # Only run if both pass
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build backend Docker image
+        run: docker build -t library-backend ./library_backend
+
+      - name: Build frontend Docker image
+        run: docker build -t library-frontend ./library_frontend

@@ -1,0 +1,63 @@
+# ─── Python / Django ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+*.env
+
+# Django specific
+library_backend/staticfiles/
+library_backend/media/
+library_backend/db.sqlite3
+
+# Keep migration files in version control (important for team consistency)
+# !library_backend/apps/*/migrations/*.py
+
+# ─── Node / Next.js ───────────────────────────────────────────────────────────
+node_modules/
+library_frontend/.next/
+library_frontend/out/
+library_frontend/.cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Environment Variables ────────────────────────────────────────────────────
+# Never commit real .env files
+.env
+.env.local
+.env.production
+.env.*.local
+library_backend/.env
+library_frontend/.env.local
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+# Keep docker-compose.yml and Dockerfiles tracked
+# Ignore override files
+docker-compose.override.yml
+
+# ─── IDE / OS ─────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Testing ──────────────────────────────────────────────────────────────────
+.coverage
+htmlcov/
+.pytest_cache/
